@@ -19,6 +19,12 @@ Rules:
 - Do NOT use failed_when: false
 - Do NOT hide errors
 - Apply a real correction
+- Analyze the Ansible error carefully.
+- Fix the root cause of the failure.
+- Do not just rename tasks.
+- Do not keep the same invalid configuration.
+- Replace invalid values if necessary.
+- Return a fully executable YAML playbook.
 
 Playbook:
 {playbook}
