@@ -1,39 +1,54 @@
+
 from app.services.ssh_service import execute_command
 
 
 def check_ansible_playbook(playbook_path: str):
 
-    command = f"""
-    ansible-playbook --syntax-check {playbook_path}
-    """
+    command = (
+        f"ansible-playbook "
+        f"-i /home/maram/inventory "
+        f"--syntax-check "
+        f"{playbook_path}"
+    )
 
     result = execute_command(command)
 
-    if result["stderr"] == "":
+    if result.get("returncode", 1) == 0:
 
         return {
             "valid": True,
-            "stdout": result["stdout"]
+            "stdout": result.get("stdout", ""),
+            "stderr": result.get("stderr", "")
         }
 
     return {
         "valid": False,
-        "stderr": result["stderr"]
+        "stdout": result.get("stdout", ""),
+        "stderr": result.get("stderr", "")
     }
 
 
+def execute_playbook(playbook_path: str, environment: str):
 
-def execute_playbook(playbook_path):
+    if environment not in ["test", "prod"]:
 
-    command = f"""
-    cd ~/ansible &&
-    ansible-playbook -i inventory.ini {playbook_path}
-    """
+        return {
+            "status": 1,
+            "stdout": "",
+            "stderr": "Invalid environment. Use 'test' or 'prod'."
+        }
+
+    command = (
+        f"ansible-playbook "
+        f"-i /home/maram/inventory "
+        f"{playbook_path} "
+        f"--limit {environment}"
+    )
 
     result = execute_command(command)
 
     return {
         "status": result.get("returncode", 1),
-        "stdout": result["stdout"],
-        "stderr": result["stderr"]
+        "stdout": result.get("stdout", ""),
+        "stderr": result.get("stderr", "")
     }

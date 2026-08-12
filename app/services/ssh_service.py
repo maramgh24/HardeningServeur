@@ -1,35 +1,40 @@
 import paramiko
 
-
 HOST = "192.168.150.133"
 USERNAME = "maram"
 PASSWORD = "maram"
 
-def get_ssh_connection():
 
+def get_ssh_connection():
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
     ssh.connect(
         hostname=HOST,
         username=USERNAME,
-        password=PASSWORD
+        password=PASSWORD,
+        timeout=10
     )
 
     return ssh
 
-def execute_command(command: str):
 
+def execute_command(command: str):
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
     ssh.connect(
         hostname=HOST,
         username=USERNAME,
-        password=PASSWORD
+        password=PASSWORD,
+        timeout=10
     )
 
-    stdin, stdout, stderr = ssh.exec_command(command)
+    stdin, stdout, stderr = ssh.exec_command(
+        command,
+        timeout=60
+    )
+
     exit_status = stdout.channel.recv_exit_status()
 
     output = stdout.read().decode()
@@ -41,11 +46,10 @@ def execute_command(command: str):
         "stdout": output,
         "stderr": error,
         "returncode": exit_status
-
     }
 
-def upload_file(local_path, remote_path):
 
+def upload_file(local_path, remote_path):
     ssh = get_ssh_connection()
 
     sftp = ssh.open_sftp()
@@ -58,8 +62,7 @@ def upload_file(local_path, remote_path):
     sftp.close()
     ssh.close()
 
-
     return {
         "message": "File uploaded successfully",
         "remote_path": remote_path
-    }    
+    }
