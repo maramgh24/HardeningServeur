@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes import (
     automation,
@@ -16,6 +17,30 @@ app = FastAPI(
     version="1.0.0"
 )
 
+
+# ==========================================
+# CORS
+# ==========================================
+
+app.add_middleware(
+    CORSMiddleware,
+
+    allow_origins=[
+        "http://localhost:4200",
+        "http://127.0.0.1:4200"
+    ],
+
+    allow_credentials=True,
+
+    allow_methods=["*"],
+
+    allow_headers=["*"],
+)
+
+
+# ==========================================
+# ROUTES
+# ==========================================
 
 app.include_router(
     automation.router
@@ -41,6 +66,10 @@ app.include_router(
     rollback.router
 )
 
+
+# ==========================================
+# ROOT
+# ==========================================
 
 @app.get("/")
 def root():
