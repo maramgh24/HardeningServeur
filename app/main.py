@@ -1,13 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+from app.database import Base, engine
 from app.routes import (
     automation,
     correction,
     foundry,
     ansible,
     validator,
-    rollback
+    rollback,
+    stats
 )
 
 
@@ -18,9 +19,9 @@ app = FastAPI(
 )
 
 
-# ==========================================
+# ==================================================
 # CORS
-# ==========================================
+# ==================================================
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,10 +38,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# ==========================================
+Base.metadata.create_all(bind=engine)
+# ==================================================
 # ROUTES
-# ==========================================
+# ==================================================
 
 app.include_router(
     automation.router
@@ -66,10 +67,14 @@ app.include_router(
     rollback.router
 )
 
+app.include_router(
+    stats.router
+)
 
-# ==========================================
+
+# ==================================================
 # ROOT
-# ==========================================
+# ==================================================
 
 @app.get("/")
 def root():

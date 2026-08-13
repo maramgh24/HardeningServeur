@@ -5,6 +5,7 @@ from app.services.validator_service import validate_yaml
 from app.services.file_service import save_corrected_playbook
 from app.services.ssh_service import upload_file
 from app.services.ansible_service import execute_playbook
+from app.services.stats_service import stats_service
 
 
 print("CORRECTION ROUTE LOADED")
@@ -16,6 +17,10 @@ router = APIRouter(
 )
 
 
+# ==================================================
+# AI CORRECTION
+# ==================================================
+
 @router.post("/ai")
 def correct_with_ai(request: dict):
 
@@ -25,6 +30,11 @@ def correct_with_ai(request: dict):
     playbook = request["playbook"]
     error = request["error"]
 
+
+    # --------------------------------------------------
+    # 1. Génération de la correction par l'IA
+    # --------------------------------------------------
+
     correction = correct_playbook(
         playbook,
         error
@@ -32,16 +42,32 @@ def correct_with_ai(request: dict):
 
     print("AI CORRECTION GENERATED")
 
+
+    # Une correction IA a été générée
+    stats_service.record_ai_correction()
+
+
+    # --------------------------------------------------
+    # 2. Validation YAML
+    # --------------------------------------------------
+
     validation = validate_yaml(correction)
 
     print("VALIDATION =", validation)
 
+
     if not validation["valid"]:
+
         return {
             "status": "YAML_ERROR",
             "correction": correction,
             "validation": validation
         }
+
+
+    # --------------------------------------------------
+    # 3. Correction valide
+    # --------------------------------------------------
 
     return {
         "status": "AI_CORRECTION_GENERATED",
@@ -49,6 +75,10 @@ def correct_with_ai(request: dict):
         "validation": validation
     }
 
+
+# ==================================================
+# MANUAL CORRECTION
+# ==================================================
 
 @router.post("/manual")
 def manual_correction(request: dict):
@@ -58,15 +88,23 @@ def manual_correction(request: dict):
 
     playbook = request["playbook"]
 
+
+    # --------------------------------------------------
+    # Validation YAML
+    # --------------------------------------------------
+
     validation = validate_yaml(playbook)
 
     print("VALIDATION =", validation)
 
+
     if not validation["valid"]:
+
         return {
             "status": "YAML_ERROR",
             "validation": validation
         }
+
 
     return {
         "status": "MANUAL_CORRECTION_VALID",
@@ -75,17 +113,23 @@ def manual_correction(request: dict):
     }
 
 
+# ==================================================
+# ACCEPT CORRECTION
+# ==================================================
+
 @router.post("/accept")
 def accept_correction(request: dict):
 
     print("========== /correction/accept ==========")
     print("REQUEST =", request)
 
-    # --------------------------------------------------
+
+    # ==================================================
     # 1. Récupération des données
-    # --------------------------------------------------
+    # ==================================================
 
     try:
+
         playbook = request["playbook"]
         environment = request["environment"]
 
@@ -101,9 +145,10 @@ def accept_correction(request: dict):
             "error": str(e)
         }
 
-    # --------------------------------------------------
+
+    # ==================================================
     # 2. Vérification de l'environnement
-    # --------------------------------------------------
+    # ==================================================
 
     if environment not in ["test", "prod"]:
 
@@ -114,9 +159,10 @@ def accept_correction(request: dict):
             "message": "Environment must be 'test' or 'prod'."
         }
 
-    # --------------------------------------------------
+
+    # ==================================================
     # 3. Validation YAML
-    # --------------------------------------------------
+    # ==================================================
 
     try:
 
@@ -126,12 +172,16 @@ def accept_correction(request: dict):
 
     except Exception as e:
 
-        print("ERROR DURING YAML VALIDATION:", str(e))
+        print(
+            "ERROR DURING YAML VALIDATION:",
+            str(e)
+        )
 
         return {
             "status": "VALIDATION_ERROR",
             "error": str(e)
         }
+
 
     if not validation["valid"]:
 
@@ -142,28 +192,38 @@ def accept_correction(request: dict):
             "validation": validation
         }
 
-    # --------------------------------------------------
+
+    # ==================================================
     # 4. Sauvegarde du playbook
-    # --------------------------------------------------
+    # ==================================================
 
     try:
 
-        file_path = save_corrected_playbook(playbook)
+        file_path = save_corrected_playbook(
+            playbook
+        )
 
-        print("FILE SAVED =", file_path)
+        print(
+            "FILE SAVED =",
+            file_path
+        )
 
     except Exception as e:
 
-        print("ERROR SAVING FILE:", str(e))
+        print(
+            "ERROR SAVING FILE:",
+            str(e)
+        )
 
         return {
             "status": "FILE_SAVE_ERROR",
             "error": str(e)
         }
 
-    # --------------------------------------------------
-    # 5. Upload vers la VM de contrôle
-    # --------------------------------------------------
+
+    # ==================================================
+    # 5. Upload vers la VM
+    # ==================================================
 
     try:
 
@@ -172,20 +232,27 @@ def accept_correction(request: dict):
             "/home/maram/playbook_corrected.yml"
         )
 
-        print("UPLOAD RESULT =", upload)
+        print(
+            "UPLOAD RESULT =",
+            upload
+        )
 
     except Exception as e:
 
-        print("ERROR DURING UPLOAD:", str(e))
+        print(
+            "ERROR DURING UPLOAD:",
+            str(e)
+        )
 
         return {
             "status": "UPLOAD_ERROR",
             "error": str(e)
         }
 
-    # --------------------------------------------------
+
+    # ==================================================
     # 6. Exécution Ansible
-    # --------------------------------------------------
+    # ==================================================
 
     try:
 
@@ -194,11 +261,24 @@ def accept_correction(request: dict):
             environment
         )
 
-        print("EXECUTION RESULT =", execution)
+        print(
+            "EXECUTION RESULT =",
+            execution
+        )
 
     except Exception as e:
 
-        print("ERROR DURING ANSIBLE EXECUTION:", str(e))
+        print(
+            "ERROR DURING ANSIBLE EXECUTION:",
+            str(e)
+        )
+
+
+        # L'exécution de la correction a échoué
+        stats_service.record_correction_execution(
+            success=False
+        )
+
 
         return {
             "status": "ANSIBLE_EXECUTION_ERROR",
@@ -206,13 +286,23 @@ def accept_correction(request: dict):
             "upload": upload
         }
 
-    # --------------------------------------------------
-    # 7. Résultat final
-    # --------------------------------------------------
+
+    # ==================================================
+    # 7. Vérification du résultat
+    # ==================================================
 
     if execution["status"] == 0:
 
-        print("CORRECTION EXECUTED SUCCESSFULLY")
+        print(
+            "CORRECTION EXECUTED SUCCESSFULLY"
+        )
+
+
+        # Correction exécutée avec succès
+        stats_service.record_correction_execution(
+            success=True
+        )
+
 
         return {
             "status": "SUCCESS_AFTER_CORRECTION",
@@ -224,7 +314,20 @@ def accept_correction(request: dict):
             "execution": execution
         }
 
-    print("CORRECTION EXECUTION FAILED")
+
+    # ==================================================
+    # 8. Correction échouée
+    # ==================================================
+
+    print(
+        "CORRECTION EXECUTION FAILED"
+    )
+
+
+    stats_service.record_correction_execution(
+        success=False
+    )
+
 
     return {
         "status": "CORRECTION_EXECUTION_FAILED",

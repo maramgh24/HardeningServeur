@@ -12,6 +12,4 @@ router = APIRouter(
 @router.post("/execute")
 def execute_rollback():
 
-    result = rollback()
-
-    return result
+    return rollback()
